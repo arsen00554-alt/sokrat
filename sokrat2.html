@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Флавия и Мудрость Сократа</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body {
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 100vw;
+            max-width: 800px;
+            height: 100vh;
+            max-height: 600px;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Наэкранный геймпад для телефонов */
+        .controls-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 150px;
+            height: 150px;
+            z-index: 10;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            color: white;
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            touch-action: manipulation;
+        }
+        .dpad-btn:active, .dpad-btn.active {
+            background: rgba(231, 76, 60, 0.7);
+            border-color: #e74c3c;
+        }
+
+        #btn-up    { top: 0; left: 51px; }
+        #btn-down  { bottom: 0; left: 51px; }
+        #btn-left  { top: 51px; left: 0; }
+        #btn-right { top: 51px; right: 0; }
+
+        /* Эпичный модальный экран победы */
+        #victory-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 15, 0.95);
+            z-index: 50;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            text-align: center;
+            box-sizing: border-box;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .victory-card {
+            background: #1e1e24;
+            border: 2px solid #e74c3c;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.3);
+        }
+
+        .victory-title {
+            color: #f39c12;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .socrates-text {
+            font-style: italic;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #eceff1;
+            margin-bottom: 20px;
+            border-left: 3px solid #f39c12;
+            padding-left: 12px;
+            text-align: left;
+        }
+
+        .restart-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: poin
+
+
+ter;
+            transition: 0.2s;
+        }
+        .restart-btn:hover { background: #c0392b; }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="game-container"></div>
+
+    <!-- Сенсорный геймпад -->
+    <div class="controls-overlay">
+        <div id="btn-up" class="dpad-btn">▲</div>
+        <div id="btn-down" class="dpad-btn">▼</div>
+        <div id="btn-left" class="dpad-btn">◀</div>
+        <div id="btn-right" class="dpad-btn">▶</div>
+    </div>
+
+    <!-- Финальный экран (Под столом) -->
+    <div id="victory-modal">
+        <div class="victory-card">
+            <div class="victory-title">🏆 Победа! Флавия под столом</div>
+            <div class="socrates-text">
+                «Я знаю только то, что ничего не знаю... Но теперь я знаю наверняка: нет лучшего места для размышлений о вечном, чем необитаемый остров.
+
+                Там, где белеет бесконечный берег, а волны смывают суету этого мира, душа обретает истинную свободу.
+
+                Ты искала меня среди осколков, Флавия, но настоящая мудрость — это умение вовремя спрятаться под столом и созерцать тишину.
+
+                Берег ждёт. Мысли чисты.»
+            </div>
+            <button class="restart-btn" onclick="location.reload()">Сыграть снова</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Инициализация Telegram WebApp
+if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+}
+
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    parent: 'game-container',
+    physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+    },
+    scene: { preload: preload, create: create, update: update }
+};
+
+const game = new Phaser.Game(config);
+
+let flaviaContainer, enemy, table, doorRoom1, doorRoom2;
+let papersGroup, scoreText, statusText;
+
+let currentRoom = 1;
+let collectedPapers = 0;
+const totalPapers = 4;
+let isHiddenUnderTable = false;
+
+// Расположение 4 кусочков (по 2 в каждой комнате)
+const papersData = [
+    { id: 1, room: 1, x: 200, y: 150, collected: false },
+    { id: 2, room: 1, x: 700, y: 450, collected: false },
+    { id: 3, room: 2, x: 150, y: 200, collected: false },
+    { id: 4, room: 2, x: 650, y: 400, collected: false }
+];
+
+let mobileKeys = { left: false, right: false, up: false, down: false };
+let cursors;
+
+function preload() {}
+
+function create() {
+    const scene = this;
+
+    drawRoomBackground(this);
+
+    // Флавия в белом халате поверх красного худи
+    const redHoodie = this.add.rectangle(0, 0, 32, 50, 0xe74c3c);
+    const labCoat = this.add.rectangle(0, 0, 36, 42, 0xffffff);
+    flaviaContainer = this.add.container(150, 300, [redHoodie, labCoat]);
+    this.physics.add.existing(flaviaContainer);
+    flaviaContainer.body.setCollideWorldBounds(true);
+    flaviaContainer.body.setSize(36, 50);
+
+    // Противник (Комната 1)
+    enemy = this.add.rectangle(650, 150, 34, 50, 0x8e44ad);
+    this.physics.add.existing(enemy);
+
+    // Стол в первой комнате
+    table = this.add.rectangle(120, 500, 120, 60, 0x8d6e63);
+    this.physics.add.existing(table, true);
+    this.add.text(120, 500, 'СТОЛ', { fontSize: '14px', fill: '#fff' }).setOrigin(0.5);
+
+    // Двери между комнатами
+    doorRoom1 = this.add.rectangle(780, 300, 40, 100, 0xf39c12);
+    this.physics.add.existing(doorRoom1, true);
+
+    doorRoom2 = this.add.rectangle(20, 300, 40, 100, 0xf39c12);
+    this.physics.add.existing(doorRoom2, true);
+    doorRoom2.setActive(false).setVisible(false);
+
+    // Записки
+    papersGroup = this.physics.add.staticGroup();
+    refreshPapers(scene);
+
+    // Интерфейс
+    scoreText = this.add.text(20, 20, 'Записки Сократа: 0 / 4', { fontSize: '18px', fill: '#ffffff', backgroundColor: '#00000088', padding: { x: 10, y: 5 } });
+    statusText = this.add.text(20, 55, 'Комната 1 | Соберите 4 кусочка текста!', { fontSize: '14px', fill: '#f39c12', backgroundColor: '#00000088', padding: { x: 10, y: 5 } });
+
+    // Управление
+    cursors = this.input.keyboard.cre
+
+
+ateCursorKeys();
+    setupTouchControls();
+
+    // Столкновения
+    this.physics.add.overlap(flaviaContainer, papersGroup, collectPaper, null, this);
+    this.physics.add.overlap(flaviaContainer, doorRoom1, switchRoom, null, this);
+    this.physics.add.overlap(flaviaContainer, doorRoom2, switchRoom, null, this);
+    this.physics.add.overlap(flaviaContainer, table, checkTableInteraction, null, this);
+    this.physics.add.overlap(flaviaContainer, enemy, hitEnemy, null, this);
+}
+
+function update() {
+    if (isHiddenUnderTable) return;
+
+    const flaviaSpeed = 220;
+    flaviaContainer.body.setVelocity(0);
+
+    let moveL = cursors.left.isDown || mobileKeys.left;
+    let moveR = cursors.right.isDown || mobileKeys.right;
+    let moveU = cursors.up.isDown || mobileKeys.up;
+    let moveD = cursors.down.isDown || mobileKeys.down;
+
+    if (moveL) flaviaContainer.body.setVelocityX(-flaviaSpeed);
+    else if (moveR) flaviaContainer.body.setVelocityX(flaviaSpeed);
+
+    if (moveU) flaviaContainer.body.setVelocityY(-flaviaSpeed);
+    else if (moveD) flaviaContainer.body.setVelocityY(flaviaSpeed);
+
+    // Преследование врагом (скорость 110 = 50% от скорости Флавии)
+    if (currentRoom === 1 && enemy.active) {
+        this.physics.moveToObject(enemy, flaviaContainer, 110);
+    } else {
+        enemy.body.setVelocity(0, 0);
+    }
+}
+
+function drawRoomBackground(scene) {
+    const graphics = scene.add.graphics();
+    graphics.lineStyle(1, 0x333333, 0.5);
+    for (let x = 0; x < 800; x += 40) graphics.lineBetween(x, 0, x, 600);
+    for (let y = 0; y < 600; y += 40) graphics.lineBetween(0, y, 800, y);
+}
+
+function refreshPapers(scene) {
+    papersGroup.clear(true, true);
+    papersData.forEach(p => {
+        if (p.room === currentRoom && !p.collected) {
+            const paperSprite = scene.add.rectangle(p.x, p.y, 24, 24, 0xf1c40f);
+            scene.physics.add.existing(paperSprite, true);
+            paperSprite.paperId = p.id;
+            papersGroup.add(paperSprite);
+        }
+    });
+}
+
+function collectPaper(player, paper) {
+    const paperObj = papersData.find(p => p.id === paper.paperId);
+    if (paperObj && !paperObj.collected) {
+        paperObj.collected = true;
+        paper.destroy();
+        collectedPapers++;
+        scoreText.setText(`Записки Сократа: ${collectedPapers} / ${totalPapers}`);
+
+        if (collectedPapers < totalPapers) {
+            statusText.setText(`Собрано ${collectedPapers}/${totalPapers}. Ищите остальные!`);
+        } else {
+            statusText.setText('Все кусочки собраны! БЕГИ И ЗАЛЕЗАЙ ПОД СТОЛ В 1-Й КОМНАТЕ!');
+            statusText.setStyle({ fill: '#2ecc71' });
+        }
+    }
+}
+
+function switchRoom() {
+    if (currentRoom === 1) {
+        currentRoom = 2;
+        flaviaContainer.setPosition(70, 300);
+        doorRoom1.setActive(false).setVisible(false);
+        doorRoom2.setActive(true).setVisible(true);
+        table.setActive(false).setVisible(false);
+        enemy.setActive(false).setVisible(false);
+        statusText.setText('Комната 2 | Соберите кусочки Сократа');
+    } else {
+        currentRoom = 1;
+        flaviaContainer.setPosition(730, 300);
+        doorRoom1.setActive(true).setVisible(true);
+        doorRoom2.setActive(false).setVisible(false);
+        table.setActive(true).setVisible(true);
+        enemy.setActive(true).setVisible(true);
+        statusText.setText(collectedPapers === totalPapers ? 'ЗАЛЕЗАЙ ПОД СТОЛ!' : 'Комната 1');
+    }
+    refreshPapers(this);
+}
+
+function checkTableInteraction(player, tableObj) {
+    if (collectedPapers >= totalPapers && currentRoom === 1 && !isHiddenUnderTable) {
+        isHiddenUnderTable = true;
+        flaviaContainer.body.setVelocity(0);
+        
+        // Флавия уменьшается и прячется под стол (эффект приседания Crouch)
+        flaviaContainer.setScale(0.6);
+        flaviaContainer.setPosition(tableObj.x, tableObj.y);
+        enemy.setActive(false);
+
+        setTimeout(() => {
+            document.getElementById('victory-modal').style.display = 'fle
+
+
+x';
+        }, 500);
+    }
+}
+
+function hitEnemy(player, enemyObj) {
+    if (!isHiddenUnderTable && currentRoom === 1) {
+        alert('Враг догнал Флавию! Попробуйте снова.');
+        location.reload();
+    }
+}
+
+function setupTouchControls() {
+    const bindButton = (id, keyName) => {
+        const el = document.getElementById(id);
+        const start = (e) => { e.preventDefault(); mobileKeys[keyName] = true; el.classList.add('active'); };
+        const end = (e) => { e.preventDefault(); mobileKeys[keyName] = false; el.classList.remove('active'); };
+
+        el.addEventListener('touchstart', start);
+        el.addEventListener('touchend', end);
+        el.addEventListener('touchcancel', end);
+        el.addEventListener('mousedown', start);
+        el.addEventListener('mouseup', end);
+        el.addEventListener('mouseleave', end);
+    };
+
+    bindButton('btn-up', 'up');
+    bindButton('btn-down', 'down');
+    bindButton('btn-left', 'left');
+    bindButton('btn-right', 'right');
+}
+</script>
+</body>
+</html>
